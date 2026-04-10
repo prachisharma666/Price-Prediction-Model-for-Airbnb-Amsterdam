@@ -61,7 +61,10 @@ if st.button("Predict"):
 
     # 7. THE FIX: Tell statsmodels this is a simple array prediction
     # By using the .values, we keep the order but stop the "Patsy" logic from triggering
-    log_pred = model.predict(exog=final_input)
+# Pass the data as a raw array (.values) 
+# This tells Statsmodels: "Don't check the names, just use the numbers in this order."
+    log_pred = model.predict(exog=final_input.values)
+    
+    # Then finish as usual
     final_price = np.expm1(log_pred[0])
-
     st.success(f"Price: ${final_price:.2f}")
