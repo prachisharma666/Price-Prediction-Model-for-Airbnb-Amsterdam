@@ -1,1 +1,1 @@
-# Price-Prediction-Model-for-Airbnb-Amsterdam-using-Render
+# Price-Prediction-Model-for-Airbnb-Amsterdam
