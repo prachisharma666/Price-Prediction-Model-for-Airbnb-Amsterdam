@@ -4,121 +4,64 @@ import numpy as np
 import joblib
 import statsmodels.api as sm
 
-# 1. Load your saved model and the preprocessor pipeline
-# Use sm.load for statsmodels files
+# 1. Load your tools
 preprocessor = joblib.load('preprocessor.pkl')
 model = sm.load('airbnb_model.pkl') 
 
-st.set_page_config(page_title="Amsterdam Price Predictor", layout="wide")
 st.title("Amsterdam Airbnb Price Predictor")
 
-# 2. UI Inputs
-col1, col2, col3 = st.columns(3)
+# 2. UI Inputs (Simplified for brevity)
+accommodates = st.slider("Accommodates", 1, 16, 2)
+bedrooms = st.number_input("Bedrooms", 1, 10, 1)
+bathrooms = st.number_input("Bathrooms", 0.5, 10.0, 1.0)
+room_type = st.selectbox("Room Type", ["Entire home/apt", "Private room", "Shared room"])
+neighbourhood = st.selectbox("Neighborhood", ["Centrum-Oost", "Bos en Lommer", "Noord-West", "Other"])
 
-with col1:
-    st.subheader("Property Basics")
-    accommodates = st.slider("Accommodates", 1, 16, 2)
-    bedrooms = st.number_input("Bedrooms", 1, 10, 1)
-    bathrooms = st.number_input("Bathrooms", 0.5, 10.0, 1.0)
-    beds = st.number_input("Beds", 1, 20, 2)
-    room_type = st.selectbox("Room Type", ["Entire home/apt", "Private room", "Shared room", "Hotel room"])
-
-with col2:
-    st.subheader("Location & Policy")
-    # These match the neighborhoods in your OLS formula
-    neighborhoods = ["Oostelijk Havengebied - Indische Buurt", "Bos en Lommer", 
-                     "Buitenveldert - Zuidas", "Centrum-Oost", "De Pijp - Rivierenbuurt", 
-                     "IJburg - Zeeburgereiland", "Geuzenveld - Slotermeer", 
-                     "Noord-Oost", "Noord-West", "Slotervaart", "Watergraafsmeer", "Centrum-West"]
-    neighbourhood = st.selectbox("Neighborhood", sorted(neighborhoods))
-    min_nights = st.number_input("Minimum Nights", 1, 30, 2)
-    instant_book = st.checkbox("Instant Bookable")
-
-with col3:
-    st.subheader("Reviews & History")
-    clean_score = st.slider("Cleanliness Score", 0.0, 5.0, 4.8)
-    loc_score = st.slider("Location Score", 0.0, 5.0, 4.5)
-    val_score = st.slider("Value Score", 0.0, 5.0, 4.5)
-    reviews_month = st.number_input("Reviews Per Month", 0.0, 20.0, 1.0)
-
-if st.button("Calculate Estimated Price"):
-    # 3. Build input dict matching raw column names from your original CSV
-# 4. Create raw input dataframe
-# ADD EVERY COLUMN that was in your original X_train here
+if st.button("Predict"):
+    # 3. Create raw input
     input_dict = {
-        "accommodates": accommodates,
-        "bedrooms": bedrooms,
-        "bathrooms_count": bathrooms,
-        "beds": beds,
-        "minimum_nights": min_nights,
-        "review_scores_cleanliness": clean_score,
-        "review_scores_location": loc_score,
-        "review_scores_value": val_score,
-        "instant_bookable": 1 if instant_book else 0,
-        "host_identity_verified": 1, 
-        "room_type": room_type,
-        "neighbourhood_cleansed": neighbourhood,
-        "latitude": 52.37, 
-        "longitude": 4.89, 
-        "maximum_nights": 30, 
-        "availability_365": 100,
-        "number_of_reviews": 10, 
-        "review_scores_rating": 4.5, 
-        "reviews_per_month": reviews_month,
-        "host_is_superhost": 0, 
-        "has_availability": 1, 
-        "first_review_days": 100, 
-        "last_review_days": 10
+        "accommodates": accommodates, "bedrooms": bedrooms, "bathrooms_count": bathrooms,
+        "room_type": room_type, "neighbourhood_cleansed": neighbourhood,
+        "beds": 1, "minimum_nights": 2, "review_scores_cleanliness": 4.5,
+        "review_scores_location": 4.5, "review_scores_value": 4.5,
+        "instant_bookable": 1, "host_identity_verified": 1, "availability_365": 100,
+        "reviews_per_month": 1.0, "latitude": 52.3, "longitude": 4.9,
+        "maximum_nights": 30, "number_of_reviews": 10, "review_scores_rating": 4.5,
+        "host_is_superhost": 0, "has_availability": 1, "first_review_days": 100, "last_review_days": 10
     }
     
     input_df = pd.DataFrame([input_dict])
     
-    # 4. Transform using Pipeline (Scaling and One-Hot Encoding)
+    # 4. Transform using Pipeline
     processed_data = preprocessor.transform(input_df)
-    
-    # Get feature names from preprocessor and clean them
-    # e.g., 'cat__room_type_Private room' becomes 'room_type_Private room'
     raw_cols = [c.split("__")[-1] for c in preprocessor.get_feature_names_out()]
     processed_df = pd.DataFrame(processed_data, columns=raw_cols)
 
-    # 5. MANUALLY CONSTRUCT FORMULA TERMS (Crucial for Statsmodels consistency)
-    
-    # Squared Terms
+    # 5. Create the columns exactly as they appear in your OLS summary
     processed_df['accommodates2'] = processed_df['accommodates'] ** 2
     processed_df['minimum_nights2'] = processed_df['minimum_nights'] ** 2
-    
-    # Categorical Interaction: accommodates * Q('room_type_Private room')
-    # We find the 0/1 flag for Private room and multiply it by accommodates
-    is_private = processed_df['room_type_Private room'] if 'room_type_Private room' in processed_df.columns else 0
-    processed_df["accommodates:Q('room_type_Private room')"] = processed_df['accommodates'] * is_private
-    
-    # Numerical Interaction: accommodates * bedrooms
     processed_df['accommodates:bedrooms'] = processed_df['accommodates'] * processed_df['bedrooms']
+    
+    # Interaction term name must match the OLS summary exactly
+    is_private = 1.0 if room_type == "Private room" else 0.0
+    processed_df["accommodates:Q('room_type_Private room')"] = processed_df['accommodates'] * is_private
 
-    # 6. Format Neighborhood columns to match the OLS "Q('name')" syntax
-    # Statsmodels formula API renames categorical columns with Q() for safety
+    # Rename neighborhoods to match the Q('') format in the model
     for col in processed_df.columns:
         if "neighbourhood_cleansed" in col:
             processed_df.rename(columns={col: f"Q('{col}')"}, inplace=True)
 
-    # 7. Match exactly with Model Parameter Index
-    model_columns = model.params.index.tolist()
-    
-    # Add Intercept if required by model
-    if 'Intercept' in model_columns:
+    # 6. Final Alignment
+    model_params = model.params.index.tolist()
+    if 'Intercept' in model_params:
         processed_df['Intercept'] = 1.0
-        
-    # Reindex ensures all expected columns exist (fills missing neighborhoods with 0)
-    # and puts them in the exact order the model expects.
-    final_input = processed_df.reindex(columns=model_columns, fill_value=0.0)
+    
+    # Reindex fills missing values with 0 and matches the order
+    final_input = processed_df.reindex(columns=model_params, fill_value=0.0)
 
-    # 8. Predict and Invert Log
-    # Convert the DataFrame to a raw NumPy array to bypass the Patsy formula check
-    log_pred = model.predict(final_input.values)
-    # Use expm1 to reverse the log1p transformation used during training
+    # 7. THE FIX: Tell statsmodels this is a simple array prediction
+    # By using the .values, we keep the order but stop the "Patsy" logic from triggering
+    log_pred = model.predict(exog=final_input)
     final_price = np.expm1(log_pred[0])
 
-    # Display Result
-    st.divider()
-    st.success(f"### Estimated Price: ${final_price:.2f} per night")
-    st.info("Note: This prediction accounts for interactions between property size and room type.")
+    st.success(f"Price: ${final_price:.2f}")
