@@ -113,7 +113,8 @@ if st.button("Calculate Estimated Price"):
     final_input = processed_df.reindex(columns=model_columns, fill_value=0.0)
 
     # 8. Predict and Invert Log
-    log_pred = model.predict(final_input)
+    # Convert the DataFrame to a raw NumPy array to bypass the Patsy formula check
+    log_pred = model.predict(final_input.values)
     # Use expm1 to reverse the log1p transformation used during training
     final_price = np.expm1(log_pred[0])
 
