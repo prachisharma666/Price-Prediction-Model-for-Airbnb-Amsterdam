@@ -21,7 +21,6 @@ with col1:
     room_type = st.selectbox("Room Type", ["Entire home/apt", "Private room", "Shared room", "Hotel room"])
 
 with col2:
-    # --- ADDED NEIGHBOURHOOD SELECTBOX ---
     neighborhood_list = [
         "Centrum-West", "Centrum-Oost", "De Pijp - Rivierenbuurt", 
         "Zuid", "Oud-West", "Bos en Lommer", "Westerpark", 
@@ -46,7 +45,7 @@ if st.button("Predict Price"):
         "instant_bookable": 1 if instant_book else 0,
         "host_identity_verified": 1,
         "room_type": room_type,
-        "neighbourhood_cleansed": neighbourhood, # Use user selection here
+        "neighbourhood_cleansed": neighbourhood,
         "latitude": 52.3, "longitude": 4.9, "beds": 1, "maximum_nights": 30,
         "availability_365": 100, "number_of_reviews": 10, "reviews_per_month": 1.0,
         "review_scores_value": 4.5, "review_scores_location": 4.5, "review_scores_rating": 4.5,
@@ -61,12 +60,11 @@ if st.button("Predict Price"):
     cols = [c.split("__")[-1] for c in preprocessor.get_feature_names_out()]
     processed_df = pd.DataFrame(processed_data, columns=cols)
     
-    # --- FEATURE ENGINEERING (Matching your OLS formula) ---
+    # --- FEATURE ENGINEERING ---
     processed_df['accommodates2'] = processed_df['accommodates'] ** 2
     processed_df['minimum_nights2'] = processed_df['minimum_nights'] ** 2
     processed_df['accommodates:bedrooms'] = processed_df['accommodates'] * processed_df['bedrooms']
     
-    # Interaction: accommodates * Private Room
     is_private = 1.0 if room_type == "Private room" else 0.0
     processed_df["accommodates:Q('room_type_Private room')"] = processed_df['accommodates'] * is_private
 
@@ -75,16 +73,20 @@ if st.button("Predict Price"):
         if "neighbourhood_cleansed" in col:
             processed_df.rename(columns={col: f"Q('{col}')"}, inplace=True)
 
-    # --- ALIGNMENT & PREDICTION ---
+    # --- THE FIX: MANUAL PREDICTION ---
+    # 1. Get the list of features (weights) the model expects
     model_params = model.params.index.tolist()
     if 'Intercept' in model_params:
         processed_df['Intercept'] = 1.0
     
-    # Ensure all columns exist and are in the right order
+    # 2. Reindex to ensure order matches model.params exactly
     final_input = processed_df.reindex(columns=model_params, fill_value=0.0)
 
-    # Use .values to bypass the PatsyError and stop the app from crashing
-    log_pred = model.predict(final_input.values)
-    final_price = np.expm1(log_pred[0])
+    # 3. Multiply weights by inputs (Manual Dot Product)
+    # This avoids the Patsy formula check entirely
+    log_pred = np.dot(final_input.iloc[0].values, model.params.values)
+    
+    # 4. Final conversion
+    final_price = np.expm1(log_pred)
 
     st.success(f"Estimated Nightly Price: ${final_price:.2f}")
