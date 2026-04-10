@@ -43,25 +43,35 @@ with col3:
 
 if st.button("Calculate Estimated Price"):
     # 3. Build input dict matching raw column names from your original CSV
-    input_dict = {
-        "accommodates": accommodates,
-        "bedrooms": bedrooms,
-        "bathrooms_count": bathrooms,
-        "beds": beds,
-        "minimum_nights": min_nights,
-        "review_scores_cleanliness": clean_score,
-        "review_scores_location": loc_score,
-        "review_scores_value": val_score,
-        "instant_bookable": 1 if instant_book else 0,
-        "host_identity_verified": 1, 
-        "room_type": room_type,
-        "neighbourhood_cleansed": neighbourhood,
-        "availability_365": 100,
-        "reviews_per_month": reviews_month,
-        "first_review_days": 100
-    }
-    
-    input_df = pd.DataFrame([input_dict])
+# 4. Create raw input dataframe
+# ADD EVERY COLUMN that was in your original X_train here
+input_dict = {
+    "accommodates": accommodates,
+    "bedrooms": bedrooms,
+    "bathrooms_count": bathrooms,
+    "beds": beds,
+    "minimum_nights": min_nights,
+    "review_scores_cleanliness": clean_score,
+    "review_scores_location": loc_score,
+    "review_scores_value": val_score,
+    "instant_bookable": 1 if instant_book else 0,
+    "host_identity_verified": 1, 
+    "room_type": room_type,
+    "neighbourhood_cleansed": neighbourhood,
+    "latitude": 52.37, 
+    "longitude": 4.89, 
+    "maximum_nights": 30, 
+    "availability_365": 100,
+    "number_of_reviews": 10, 
+    "review_scores_rating": 4.5, 
+    "reviews_per_month": reviews_month,
+    "host_is_superhost": 0, 
+    "has_availability": 1, 
+    "first_review_days": 100, 
+    "last_review_days": 10
+}
+
+input_df = pd.DataFrame([input_dict])
     
     # 4. Transform using Pipeline (Scaling and One-Hot Encoding)
     processed_data = preprocessor.transform(input_df)
